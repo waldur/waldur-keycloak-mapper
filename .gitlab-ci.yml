@@ -1,0 +1,9 @@
+.Build JAR template:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  script:
+    - mvn deploy -s ci_settings.xml
+
+Build JAR for Java 11:
+  image: registry.hpc.ut.ee/mirror/library/maven:3.6-jdk-11
+  extends: .Build JAR template
