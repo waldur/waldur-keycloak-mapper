@@ -28,7 +28,7 @@ Release artifact for Java 11:
     - mvn -Drevision=${REVISION} clean install
   artifacts:
     paths:
-      - "target/${CI_PROJECT_NAME}-${REVISION}.jar"
+      - "target/${CI_PROJECT_NAME}-${CI_COMMIT_TAG#v}.jar"
     expire_in: never
   release:
     tag_name: "$CI_COMMIT_TAG"
