@@ -52,7 +52,7 @@ Upload docs:
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-docs/
-    - ls docs/integrations/waldur-keycloak-mapper
+    - ls docs/integrations/waldur-keycloak-mapper || mkdir docs/integrations/waldur-keycloak-mapper
     - cp -v $CI_PROJECT_DIR/README.md docs/integrations/waldur-keycloak-mapper
     - git add docs/integrations/waldur-keycloak-mapper
     - git commit -m 'Update Waldur keycloak mapper docs' || exit 0
