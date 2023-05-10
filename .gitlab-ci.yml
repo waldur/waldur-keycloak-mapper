@@ -7,7 +7,7 @@ stages:
 .Build JAR template:
   stage: build
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE != "schedule"'
   script:
     - mvn deploy -s ci_settings.xml
 
