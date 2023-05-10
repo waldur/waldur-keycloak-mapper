@@ -7,13 +7,36 @@ stages:
 .Build JAR template:
   stage: build
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "schedule"'
   script:
     - mvn deploy -s ci_settings.xml
 
-Build JAR for Java 11:
+Build latest JAR for Java 11:
   image: registry.hpc.ut.ee/mirror/library/maven:3.6-jdk-11
   extends: .Build JAR template
+
+Release artifact for Java 11:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  script:
+    - apk update
+    - apk add openjdk11 maven
+    - REVISION=${CI_COMMIT_TAG#v}
+    - echo $REVISION
+    - mvn -Drevision=${REVISION} clean install
+  artifacts:
+    paths:
+      - "target/${CI_PROJECT_NAME}-${REVISION}.jar"
+    expire_in: never
+  release:
+    tag_name: "$CI_COMMIT_TAG"
+    description: "$CI_COMMIT_TAG_MESSAGE"
+    assets:
+      links:
+        - name: "JAR"
+          url: "https://code.opennodecloud.com/$CI_PROJECT_PATH/-/jobs/$CI_JOB_ID/artifacts/download"
 
 Upload docs:
   image:
@@ -22,7 +45,7 @@ Upload docs:
   stage: deploy
   interruptible: true
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "schedule"'
   script:
     - cd /tmp/
     - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
@@ -35,17 +58,3 @@ Upload docs:
     - git commit -m 'Update Waldur keycloak mapper docs' || exit 0
     - git branch new-keycloak-mapper-docs
     - git push --set-upstream origin new-keycloak-mapper-docs:master
-
-Release artifact for Java 11:
-  stage: release
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
-  rules:
-    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
-  script:
-    - apk update
-    - apk add openjdk11 maven
-    - REVISION=${CI_COMMIT_TAG#v}
-    - mvn -Drevision=${REVISION} deploy -s ci_settings.xml
-  release:
-    tag_name: "$CI_COMMIT_TAG"
-    description: "$CI_COMMIT_TAG_MESSAGE"
