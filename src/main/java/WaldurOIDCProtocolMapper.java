@@ -74,7 +74,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         final String waldurToken = mappingModel.getConfig().get("token.waldur.value");
 
         final String waldurEndpoint = waldurUrl
-                .concat("/marketplace-offering-users/?")
+                .concat("marketplace-offering-users/?")
                 .concat("offering_uuid=")
                 .concat(offeringUuid)
                 .concat("&user_username=")
@@ -154,6 +154,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
 
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, "true");
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN, "true");
+        config.put(OIDCAttributeMapperHelper.INCLUDE_IN_USERINFO, "true");
 
         mapper.setConfig(config);
         return mapper;
