@@ -68,7 +68,6 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         claimNameProperty.setType("String");
         claimNameProperty.setHelpText("Claim name. e.g. preferred_username");
         configProperties.add(claimNameProperty);
-        configProperties.add(OIDCAttributeMapperHelper.includeInAccessToken(null))
 
         jacksonMapper = new ObjectMapper();
     }
