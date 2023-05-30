@@ -45,7 +45,8 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         urlProperty.setName(API_URL_KEY);
         urlProperty.setLabel("Waldur API URL");
         urlProperty.setType("String");
-        urlProperty.setHelpText("URL to the Waldur API including trailing backslash, e.g. https://waldur.example.com/api/");
+        urlProperty.setHelpText(
+                "URL to the Waldur API including trailing backslash, e.g. https://waldur.example.com/api/");
         configProperties.add(urlProperty);
 
         ProviderConfigProperty offeringUuidProperty = new ProviderConfigProperty();
@@ -72,10 +73,11 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         jacksonMapper = new ObjectMapper();
     }
 
-    public AccessToken transformAccessToken(
+    @Override
+    public AccessToken transformUserInfoToken(
             AccessToken token,
             ProtocolMapperModel mappingModel,
-            KeycloakSession keycloakSession,
+            KeycloakSession session,
             UserSessionModel userSession,
             ClientSessionContext clientSessionCtx) {
 
@@ -111,7 +113,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
 
         token.getOtherClaims().put(claimName, offeringUserDTO.getUsername());
 
-        setClaim(token, mappingModel, userSession, keycloakSession, clientSessionCtx);
+        setClaim(token, mappingModel, userSession, session, clientSessionCtx);
         return token;
     }
 
@@ -137,9 +139,9 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
 
             String result = EntityUtils.toString(entity);
             List<OfferingUserDTO> offeringUsers = jacksonMapper.readValue(
-                result,
-                new TypeReference<List<OfferingUserDTO>>() {}
-            );
+                    result,
+                    new TypeReference<List<OfferingUserDTO>>() {
+                    });
 
             return offeringUsers;
         } catch (Exception e) {
