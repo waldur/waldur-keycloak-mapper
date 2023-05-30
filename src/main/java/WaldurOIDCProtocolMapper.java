@@ -35,27 +35,40 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
 
     private static final ObjectMapper jacksonMapper;
 
+    private static final String API_URL_KEY = "url.waldur.api.value";
+    private static final String OFFERING_UUID_KEY = "uuid.waldur.offering.value";
+    private static final String API_TOKEN_KEY = "token.waldur.value";
+    private static final String CLAIM_NAME_KEY = "claim.name";
+
     static {
         ProviderConfigProperty urlProperty = new ProviderConfigProperty();
-        urlProperty.setName("url.waldur.api.value");
+        urlProperty.setName(API_URL_KEY);
         urlProperty.setLabel("Waldur API URL");
         urlProperty.setType("String");
         urlProperty.setHelpText("URL to the Waldur API including trailing backslash, e.g. https://waldur.example.com/api/");
         configProperties.add(urlProperty);
 
         ProviderConfigProperty offeringUuidProperty = new ProviderConfigProperty();
-        offeringUuidProperty.setName("uuid.waldur.offering.value");
+        offeringUuidProperty.setName(OFFERING_UUID_KEY);
         offeringUuidProperty.setLabel("Waldur Offering UUID");
         offeringUuidProperty.setType("String");
         offeringUuidProperty.setHelpText("UUID of the offering in Waldur");
         configProperties.add(offeringUuidProperty);
 
         ProviderConfigProperty waldurTokenProperty = new ProviderConfigProperty();
-        waldurTokenProperty.setName("token.waldur.value");
+        waldurTokenProperty.setName(API_TOKEN_KEY);
         waldurTokenProperty.setLabel("Waldur API token");
         waldurTokenProperty.setType("String");
         waldurTokenProperty.setHelpText("Token for Waldur API");
         configProperties.add(waldurTokenProperty);
+
+        ProviderConfigProperty claimNameProperty = new ProviderConfigProperty();
+        claimNameProperty.setName(CLAIM_NAME_KEY);
+        claimNameProperty.setLabel("Claim name");
+        claimNameProperty.setType("String");
+        claimNameProperty.setHelpText("Claim name. e.g. preferred_username");
+        configProperties.add(claimNameProperty);
+        configProperties.add(OIDCAttributeMapperHelper.includeInAccessToken(null))
 
         jacksonMapper = new ObjectMapper();
     }
@@ -69,9 +82,11 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
 
         String waldurUserUsername = userSession.getUser().getUsername();
 
-        final String waldurUrl = mappingModel.getConfig().get("url.waldur.api.value");
-        final String offeringUuid = mappingModel.getConfig().get("uuid.waldur.offering.value");
-        final String waldurToken = mappingModel.getConfig().get("token.waldur.value");
+        Map<String, String> config = mappingModel.getConfig();
+        final String waldurUrl = config.get(API_URL_KEY);
+        final String offeringUuid = config.get(OFFERING_UUID_KEY);
+        final String waldurToken = config.get(API_TOKEN_KEY);
+        final String claimName = config.get(CLAIM_NAME_KEY);
 
         final String waldurEndpoint = waldurUrl
                 .concat("marketplace-offering-users/?")
@@ -95,7 +110,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
 
         LOGGER.info(String.format("Waldur preferred username: %s", offeringUserDTO.getUsername()));
 
-        token.getOtherClaims().put("preferredUsername", offeringUserDTO.getUsername());
+        token.getOtherClaims().put(claimName, offeringUserDTO.getUsername());
 
         setClaim(token, mappingModel, userSession, keycloakSession, clientSessionCtx);
         return token;
@@ -139,6 +154,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
             String url,
             String offeringUuid,
             String apiToken,
+            String claimName,
             boolean accessToken,
             boolean idToken,
             boolean userInfo) {
@@ -148,13 +164,14 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         mapper.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
 
         Map<String, String> config = new HashMap<String, String>();
-        config.put("url.waldur.api.value", url);
-        config.put("uuid.waldur.offering.value", offeringUuid);
-        config.put("token.waldur.value", apiToken);
+        config.put(API_URL_KEY, url);
+        config.put(OFFERING_UUID_KEY, offeringUuid);
+        config.put(API_TOKEN_KEY, apiToken);
+        config.put(CLAIM_NAME_KEY, claimName);
 
-        config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, "true");
-        config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN, "true");
-        config.put(OIDCAttributeMapperHelper.INCLUDE_IN_USERINFO, "true");
+        config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
+        config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN, Boolean.toString(idToken));
+        config.put(OIDCAttributeMapperHelper.INCLUDE_IN_USERINFO, Boolean.toString(userInfo));
 
         mapper.setConfig(config);
         return mapper;
