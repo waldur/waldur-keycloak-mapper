@@ -1,5 +1,6 @@
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -15,6 +16,7 @@ import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.mappers.*;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.representations.AccessToken;
+import org.keycloak.representations.IDToken;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,7 +40,6 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
     private static final String API_URL_KEY = "url.waldur.api.value";
     private static final String OFFERING_UUID_KEY = "uuid.waldur.offering.value";
     private static final String API_TOKEN_KEY = "token.waldur.value";
-    private static final String CLAIM_NAME_KEY = "claim.name";
 
     static {
         ProviderConfigProperty urlProperty = new ProviderConfigProperty();
@@ -63,58 +64,10 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         waldurTokenProperty.setHelpText("Token for Waldur API");
         configProperties.add(waldurTokenProperty);
 
-        ProviderConfigProperty claimNameProperty = new ProviderConfigProperty();
-        claimNameProperty.setName(CLAIM_NAME_KEY);
-        claimNameProperty.setLabel("Claim name");
-        claimNameProperty.setType("String");
-        claimNameProperty.setHelpText("Claim name. e.g. preferred_username");
-        configProperties.add(claimNameProperty);
+        OIDCAttributeMapperHelper.addTokenClaimNameConfig(configProperties);
+        OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, WaldurOIDCProtocolMapper.class);
 
         jacksonMapper = new ObjectMapper();
-    }
-
-    @Override
-    public AccessToken transformUserInfoToken(
-            AccessToken token,
-            ProtocolMapperModel mappingModel,
-            KeycloakSession session,
-            UserSessionModel userSession,
-            ClientSessionContext clientSessionCtx) {
-
-        String waldurUserUsername = userSession.getUser().getUsername();
-
-        Map<String, String> config = mappingModel.getConfig();
-        final String waldurUrl = config.get(API_URL_KEY);
-        final String offeringUuid = config.get(OFFERING_UUID_KEY);
-        final String waldurToken = config.get(API_TOKEN_KEY);
-        final String claimName = config.get(CLAIM_NAME_KEY);
-
-        final String waldurEndpoint = waldurUrl
-                .concat("marketplace-offering-users/?")
-                .concat("offering_uuid=")
-                .concat(offeringUuid)
-                .concat("&user_username=")
-                .concat(waldurUserUsername)
-                .concat("&field=username");
-
-        LOGGER.info(String.format("Processing user %s", waldurUserUsername));
-        LOGGER.info(String.format("Waldur URL: %s", waldurEndpoint));
-
-        List<OfferingUserDTO> offeringUserDTOList = fetchUsernames(waldurEndpoint, waldurToken);
-
-        if (offeringUserDTOList.isEmpty()) {
-            LOGGER.error("Unable to retrieve a username.");
-            return token;
-        }
-
-        OfferingUserDTO offeringUserDTO = offeringUserDTOList.get(0);
-
-        LOGGER.info(String.format("Waldur preferred username: %s", offeringUserDTO.getUsername()));
-
-        token.getOtherClaims().put(claimName, offeringUserDTO.getUsername());
-
-        setClaim(token, mappingModel, userSession, session, clientSessionCtx);
-        return token;
     }
 
     private List<OfferingUserDTO> fetchUsernames(String url, String waldurToken) {
@@ -150,6 +103,101 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         return Collections.emptyList();
     }
 
+    private void transformToken(
+            IDToken token,
+            Map<String, String> config,
+            UserSessionModel userSession,
+            String tokenType) {
+        final String waldurUrl = config.get(API_URL_KEY);
+        final String offeringUuid = config.get(OFFERING_UUID_KEY);
+        final String waldurToken = config.get(API_TOKEN_KEY);
+
+        String waldurUserUsername = userSession.getUser().getUsername();
+
+        final String waldurEndpoint = waldurUrl.concat("marketplace-offering-users/?")
+                .concat("offering_uuid=")
+                .concat(offeringUuid)
+                .concat("&user_username=")
+                .concat(waldurUserUsername)
+                .concat("&field=username");
+
+        LOGGER.info(String.format("[%s token] Processing user %s", tokenType, waldurUserUsername));
+        LOGGER.info(String.format("[%s token] Waldur URL: %s", tokenType, waldurEndpoint));
+
+        List<OfferingUserDTO> offeringUserDTOList = fetchUsernames(waldurEndpoint, waldurToken);
+
+        if (offeringUserDTOList.isEmpty()) {
+            LOGGER.error(String.format("[%s token] Unable to retrieve a username.", tokenType));
+            return;
+        }
+
+        OfferingUserDTO offeringUserDTO = offeringUserDTOList.get(0);
+        String username = offeringUserDTO.getUsername();
+
+        LOGGER.info(String.format("[%s token] Waldur preferred username: %s", tokenType, username));
+
+        final String claimName = config.get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
+
+        token.getOtherClaims().put(claimName, username);
+    }
+
+    @Override
+    public AccessToken transformAccessToken(
+            AccessToken token,
+            ProtocolMapperModel mappingModel,
+            KeycloakSession session,
+            UserSessionModel userSession,
+            ClientSessionContext clientSessionCtx) {
+        Map<String, String> config = mappingModel.getConfig();
+
+        final String enabled = config.get(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN);
+        if (enabled == null || !Boolean.parseBoolean(enabled))
+            return token;
+
+        this.transformToken(token, config, userSession, "ID");
+
+        setClaim(token, mappingModel, userSession, session, clientSessionCtx);
+        return token;
+    }
+
+    @Override
+    public IDToken transformIDToken(
+            IDToken token,
+            ProtocolMapperModel mappingModel,
+            KeycloakSession session,
+            UserSessionModel userSession,
+            ClientSessionContext clientSessionCtx) {
+        Map<String, String> config = mappingModel.getConfig();
+
+        final String enabled = config.get(OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN);
+        if (enabled == null || !Boolean.parseBoolean(enabled))
+            return token;
+
+        this.transformToken(token, config, userSession, "ID");
+
+        setClaim(token, mappingModel, userSession, session, clientSessionCtx);
+        return token;
+    }
+
+    @Override
+    public AccessToken transformUserInfoToken(
+            AccessToken token,
+            ProtocolMapperModel mappingModel,
+            KeycloakSession session,
+            UserSessionModel userSession,
+            ClientSessionContext clientSessionCtx) {
+        Map<String, String> config = mappingModel.getConfig();
+
+        final String enabled = config.get(OIDCAttributeMapperHelper.INCLUDE_IN_USERINFO);
+        if (enabled == null || !Boolean.parseBoolean(enabled))
+            return token;
+
+        this.transformToken(token, config, userSession, "Userinfo");
+
+        setClaim(token, mappingModel, userSession, session, clientSessionCtx);
+        return token;
+    }
+
     public static ProtocolMapperModel create(
             String name,
             String url,
@@ -168,7 +216,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         config.put(API_URL_KEY, url);
         config.put(OFFERING_UUID_KEY, offeringUuid);
         config.put(API_TOKEN_KEY, apiToken);
-        config.put(CLAIM_NAME_KEY, claimName);
+        config.put(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME, claimName);
 
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN, Boolean.toString(idToken));
