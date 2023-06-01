@@ -5,6 +5,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
@@ -40,29 +41,40 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
     private static final String API_URL_KEY = "url.waldur.api.value";
     private static final String OFFERING_UUID_KEY = "uuid.waldur.offering.value";
     private static final String API_TOKEN_KEY = "token.waldur.value";
+    private static final String API_TLS_VALIDATE_KEY = "tls.waldur.validate";
 
     static {
-        ProviderConfigProperty urlProperty = new ProviderConfigProperty();
-        urlProperty.setName(API_URL_KEY);
-        urlProperty.setLabel("Waldur API URL");
-        urlProperty.setType("String");
-        urlProperty.setHelpText(
-                "URL to the Waldur API including trailing backslash, e.g. https://waldur.example.com/api/");
+        ProviderConfigProperty urlProperty = new ProviderConfigProperty(
+                API_URL_KEY,
+                "Waldur API URL",
+                "URL to the Waldur API including trailing backslash, e.g. https://waldur.example.com/api/",
+                "String",
+                "");
         configProperties.add(urlProperty);
 
-        ProviderConfigProperty offeringUuidProperty = new ProviderConfigProperty();
-        offeringUuidProperty.setName(OFFERING_UUID_KEY);
-        offeringUuidProperty.setLabel("Waldur Offering UUID");
-        offeringUuidProperty.setType("String");
-        offeringUuidProperty.setHelpText("UUID of the offering in Waldur");
+        ProviderConfigProperty offeringUuidProperty = new ProviderConfigProperty(
+                OFFERING_UUID_KEY,
+                "Waldur Offering UUID",
+                "UUID of the offering in Waldur",
+                "String",
+                "");
         configProperties.add(offeringUuidProperty);
 
-        ProviderConfigProperty waldurTokenProperty = new ProviderConfigProperty();
-        waldurTokenProperty.setName(API_TOKEN_KEY);
-        waldurTokenProperty.setLabel("Waldur API token");
-        waldurTokenProperty.setType("String");
-        waldurTokenProperty.setHelpText("Token for Waldur API");
+        ProviderConfigProperty waldurTokenProperty = new ProviderConfigProperty(
+                API_TOKEN_KEY,
+                "Waldur API token",
+                "Token for Waldur API",
+                "String",
+                "");
         configProperties.add(waldurTokenProperty);
+
+        ProviderConfigProperty tlsValidationProperty = new ProviderConfigProperty(
+                API_TLS_VALIDATE_KEY,
+                "TLS validation enabled",
+                "Enable TLS validation for Waldur API",
+                "boolean",
+                false);
+        configProperties.add(tlsValidationProperty);
 
         OIDCAttributeMapperHelper.addTokenClaimNameConfig(configProperties);
         OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, WaldurOIDCProtocolMapper.class);
@@ -70,12 +82,13 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         jacksonMapper = new ObjectMapper();
     }
 
-    private List<OfferingUserDTO> fetchUsernames(String url, String waldurToken) {
+    private List<OfferingUserDTO> fetchUsernames(String url, String waldurToken, boolean tlsValidationEnabled) {
         HttpGet request = new HttpGet(url);
         request.addHeader(HttpHeaders.AUTHORIZATION, String.format("Token %s", waldurToken));
-
-        try (CloseableHttpClient httpClient = HttpClients.createDefault();
-                CloseableHttpResponse response = httpClient.execute(request)) {
+        try (
+                CloseableHttpClient httpClient = tlsValidationEnabled ? HttpClients.createDefault()
+                        : HttpClients.custom().setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE).build();
+                CloseableHttpResponse response = httpClient.execute(request);) {
             int statusCode = response.getStatusLine().getStatusCode();
 
             LOGGER.info(String.format("Status Code: %s", statusCode));
@@ -111,6 +124,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         final String waldurUrl = config.get(API_URL_KEY);
         final String offeringUuid = config.get(OFFERING_UUID_KEY);
         final String waldurToken = config.get(API_TOKEN_KEY);
+        final boolean tlsValidationEnabled = Boolean.parseBoolean(config.get(API_TLS_VALIDATE_KEY));
 
         String waldurUserUsername = userSession.getUser().getUsername();
 
@@ -124,7 +138,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         LOGGER.info(String.format("[%s token] Processing user %s", tokenType, waldurUserUsername));
         LOGGER.info(String.format("[%s token] Waldur URL: %s", tokenType, waldurEndpoint));
 
-        List<OfferingUserDTO> offeringUserDTOList = fetchUsernames(waldurEndpoint, waldurToken);
+        List<OfferingUserDTO> offeringUserDTOList = fetchUsernames(waldurEndpoint, waldurToken, tlsValidationEnabled);
 
         if (offeringUserDTOList.isEmpty()) {
             LOGGER.error(String.format("[%s token] Unable to retrieve a username.", tokenType));
@@ -154,7 +168,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         if (enabled == null || !Boolean.parseBoolean(enabled))
             return token;
 
-        this.transformToken(token, config, userSession, "ID");
+        this.transformToken(token, config, userSession, "Access");
 
         setClaim(token, mappingModel, userSession, session, clientSessionCtx);
         return token;
@@ -204,6 +218,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
             String offeringUuid,
             String apiToken,
             String claimName,
+            boolean tlsValidationEnabled,
             boolean accessToken,
             boolean idToken,
             boolean userInfo) {
@@ -217,6 +232,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         config.put(OFFERING_UUID_KEY, offeringUuid);
         config.put(API_TOKEN_KEY, apiToken);
         config.put(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME, claimName);
+        config.put(API_TLS_VALIDATE_KEY, Boolean.toString(tlsValidationEnabled));
 
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN, Boolean.toString(idToken));
