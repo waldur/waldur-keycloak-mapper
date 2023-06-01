@@ -6,14 +6,25 @@ stages:
 
 .Build JAR template:
   stage: build
+  script:
+    - mvn clean install
+
+Build JAR for Java 11:
+  image: registry.hpc.ut.ee/mirror/library/maven:3.6-jdk-11
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  extends: .Build JAR template
+
+.Deploy JAR template:
+  stage: release
   rules:
     - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE != "schedule"'
   script:
-    - mvn deploy -s ci_settings.xml
+    - mvn deploy -Drevision=latest -s ci_settings.xml
 
-Build latest JAR for Java 11:
+Deploy latest JAR for Java 11:
   image: registry.hpc.ut.ee/mirror/library/maven:3.6-jdk-11
-  extends: .Build JAR template
+  extends: .Deploy JAR template
 
 Release artifact for Java 11:
   stage: release
