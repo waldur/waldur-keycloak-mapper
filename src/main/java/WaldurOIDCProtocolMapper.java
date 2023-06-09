@@ -16,7 +16,6 @@ import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.mappers.*;
 import org.keycloak.provider.ProviderConfigProperty;
-import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.IDToken;
 
 import java.util.ArrayList;
@@ -119,8 +118,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
     private void transformToken(
             IDToken token,
             Map<String, String> config,
-            UserSessionModel userSession,
-            String tokenType) {
+            UserSessionModel userSession) {
         final String waldurUrl = config.get(API_URL_KEY);
         final String offeringUuid = config.get(OFFERING_UUID_KEY);
         final String waldurToken = config.get(API_TOKEN_KEY);
@@ -135,20 +133,20 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
                 .concat(waldurUserUsername)
                 .concat("&field=username");
 
-        LOGGER.info(String.format("[%s token] Processing user %s", tokenType, waldurUserUsername));
-        LOGGER.info(String.format("[%s token] Waldur URL: %s", tokenType, waldurEndpoint));
+        LOGGER.info(String.format("Processing user %s", waldurUserUsername));
+        LOGGER.info(String.format("Waldur URL: %s", waldurEndpoint));
 
         List<OfferingUserDTO> offeringUserDTOList = fetchUsernames(waldurEndpoint, waldurToken, tlsValidationEnabled);
 
         if (offeringUserDTOList.isEmpty()) {
-            LOGGER.error(String.format("[%s token] Unable to retrieve a username.", tokenType));
+            LOGGER.error(String.format("Unable to retrieve a username."));
             return;
         }
 
         OfferingUserDTO offeringUserDTO = offeringUserDTOList.get(0);
         String username = offeringUserDTO.getUsername();
 
-        LOGGER.info(String.format("[%s token] Waldur preferred username: %s", tokenType, username));
+        LOGGER.info(String.format("Waldur preferred username: %s", username));
 
         final String claimName = config.get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
 
@@ -156,60 +154,11 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
     }
 
     @Override
-    public AccessToken transformAccessToken(
-            AccessToken token,
-            ProtocolMapperModel mappingModel,
-            KeycloakSession session,
-            UserSessionModel userSession,
-            ClientSessionContext clientSessionCtx) {
+    protected void setClaim(IDToken token, ProtocolMapperModel mappingModel, UserSessionModel userSession,
+            KeycloakSession keycloakSession, ClientSessionContext clientSessionCtx) {
         Map<String, String> config = mappingModel.getConfig();
 
-        final String enabled = config.get(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN);
-        if (enabled == null || !Boolean.parseBoolean(enabled))
-            return token;
-
-        this.transformToken(token, config, userSession, "Access");
-
-        setClaim(token, mappingModel, userSession, session, clientSessionCtx);
-        return token;
-    }
-
-    @Override
-    public IDToken transformIDToken(
-            IDToken token,
-            ProtocolMapperModel mappingModel,
-            KeycloakSession session,
-            UserSessionModel userSession,
-            ClientSessionContext clientSessionCtx) {
-        Map<String, String> config = mappingModel.getConfig();
-
-        final String enabled = config.get(OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN);
-        if (enabled == null || !Boolean.parseBoolean(enabled))
-            return token;
-
-        this.transformToken(token, config, userSession, "ID");
-
-        setClaim(token, mappingModel, userSession, session, clientSessionCtx);
-        return token;
-    }
-
-    @Override
-    public AccessToken transformUserInfoToken(
-            AccessToken token,
-            ProtocolMapperModel mappingModel,
-            KeycloakSession session,
-            UserSessionModel userSession,
-            ClientSessionContext clientSessionCtx) {
-        Map<String, String> config = mappingModel.getConfig();
-
-        final String enabled = config.get(OIDCAttributeMapperHelper.INCLUDE_IN_USERINFO);
-        if (enabled == null || !Boolean.parseBoolean(enabled))
-            return token;
-
-        this.transformToken(token, config, userSession, "Userinfo");
-
-        setClaim(token, mappingModel, userSession, session, clientSessionCtx);
-        return token;
+        this.transformToken(token, config, userSession);
     }
 
     public static ProtocolMapperModel create(
