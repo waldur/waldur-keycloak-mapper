@@ -47,7 +47,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
                 API_URL_KEY,
                 "Waldur API URL",
                 "URL to the Waldur API including trailing backslash, e.g. https://waldur.example.com/api/",
-                "String",
+                ProviderConfigProperty.STRING_TYPE,
                 "");
         configProperties.add(urlProperty);
 
@@ -55,7 +55,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
                 OFFERING_UUID_KEY,
                 "Waldur Offering UUID",
                 "UUID of the offering in Waldur",
-                "String",
+                ProviderConfigProperty.STRING_TYPE,
                 "");
         configProperties.add(offeringUuidProperty);
 
@@ -63,7 +63,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
                 API_TOKEN_KEY,
                 "Waldur API token",
                 "Token for Waldur API",
-                "String",
+                ProviderConfigProperty.STRING_TYPE,
                 "");
         configProperties.add(waldurTokenProperty);
 
@@ -71,7 +71,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
                 API_TLS_VALIDATE_KEY,
                 "TLS validation enabled",
                 "Enable TLS validation for Waldur API",
-                "boolean",
+                ProviderConfigProperty.BOOLEAN_TYPE,
                 false);
         configProperties.add(tlsValidationProperty);
 
