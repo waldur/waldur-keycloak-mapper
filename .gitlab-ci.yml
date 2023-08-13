@@ -36,9 +36,11 @@ Release artifact for Java 11:
     - apk add openjdk11 maven
     - echo $CI_COMMIT_TAG
     - mvn -Drevision=${CI_COMMIT_TAG} clean install
-    - # publish to github
-    - export UPLOAD_URL=$(curl -sH "Authorization: token $GITHUB_JENKINS_TOKEN" -X POST "https://api.github.com/repos/waldur/waldur-keycloak-mapper/releases" -d "{\"tag_name\": \"$CI_COMMIT_TAG\", \"name\": \"$CI_COMMIT_TAG\"}" | jq -r .upload_url | cut -d "{" -f 1)
-    - curl -H "Authorization: token $GITHUB_JENKINS_TOKEN" -H "Content-Type: application/octet-stream" --data-binary "@target/${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.jar" "$UPLOAD_URL?name=${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.jar"
+    - # publish to GitHub
+    - >
+      RELEASE_DATA="{\"tag_name\": \"$CI_COMMIT_TAG\", \"name\": \"$CI_COMMIT_TAG\"}"
+      UPLOAD_URL=$(curl -sH "Authorization: token $GITHUB_JENKINS_TOKEN" -X POST "https://api.github.com/repos/waldur/waldur-keycloak-mapper/releases" -d "$RELEASE_DATA" | jq -r '.upload_url' | cut -d "{" -f 1)
+      curl -H "Authorization: token $GITHUB_JENKINS_TOKEN" -H "Content-Type: application/octet-stream" --data-binary "@target/${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.jar" "$UPLOAD_URL?name=${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.jar"
   artifacts:
     paths:
       - "target/${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.jar"
