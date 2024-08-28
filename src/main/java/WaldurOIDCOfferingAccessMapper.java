@@ -199,7 +199,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                 user.joinGroup(group);
             }
         } else if(user.isMemberOf(group)) {
-            LOGGER.info(String.format("Removing user %s to group %s", user.getUsername(), group.getName()));
+            LOGGER.info(String.format("Removing user %s from group %s", user.getUsername(), group.getName()));
         }
     }
 
