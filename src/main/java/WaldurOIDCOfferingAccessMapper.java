@@ -25,7 +25,7 @@ import org.keycloak.representations.IDToken;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class WaldurOIDCGroupMapper extends AbstractOIDCProtocolMapper
+public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         implements OIDCAccessTokenMapper, OIDCIDTokenMapper, UserInfoTokenMapper {
 
     private static final String GROUP_NAME = "Viewers";
@@ -34,12 +34,13 @@ public class WaldurOIDCGroupMapper extends AbstractOIDCProtocolMapper
 
     private static final List<ProviderConfigProperty> configProperties = new ArrayList<>();
 
-    private static final Logger LOGGER = Logger.getLogger(WaldurOIDCGroupMapper.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(WaldurOIDCOfferingAccessMapper.class.getName());
 
     private static final String API_URL_KEY = "url.waldur.api.value";
     private static final String API_TOKEN_KEY = "token.waldur.value";
     private static final String OFFERING_UUID_KEY = "uuid.waldur.offering.value";
     private static final String PROVIDER_UUID_KEY = "uuid.waldur.provider.value";
+    private static final String GROUP_NAME_KEY = "name.keycloak.group.value";
 
 
     static {
@@ -78,10 +79,19 @@ public class WaldurOIDCGroupMapper extends AbstractOIDCProtocolMapper
             "Token for Waldur API",
             ProviderConfigProperty.STRING_TYPE,
             ""
-        );;
+        );
         configProperties.add(property);
 
-        OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, WaldurOIDCGroupMapper.class);
+        property = new ProviderConfigProperty(
+            GROUP_NAME_KEY,
+            "Keycloak group name.",
+            "Name of the precreated group in Keycloak.",
+            ProviderConfigProperty.STRING_TYPE,
+            ""
+        );
+        configProperties.add(property);
+
+        OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, WaldurOIDCOfferingAccessMapper.class);
     }
 
     private boolean hasRelatedOfferingUser(String waldurUrl, String providerUuid, String waldurToken, String username) {
@@ -167,12 +177,16 @@ public class WaldurOIDCGroupMapper extends AbstractOIDCProtocolMapper
         final String waldurUrl = mappingModel.getConfig().get(API_URL_KEY);
         final String providerUuid = mappingModel.getConfig().get(PROVIDER_UUID_KEY);
         final String offeringUuid = mappingModel.getConfig().get(OFFERING_UUID_KEY);
+        final String groupName = mappingModel.getConfig().get(GROUP_NAME_KEY);
         final String waldurToken = mappingModel.getConfig().get(API_TOKEN_KEY);
 
         boolean hasRelatedOfferingUser = this.hasRelatedOfferingUser(waldurUrl, providerUuid, waldurToken, username);
         if (!hasRelatedOfferingUser)
             return;
         boolean hasAccessToResoure = this.hasAccessToResource(waldurUrl, offeringUuid, waldurToken, username);
+        final String groupName = config.get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
+
+        token.getOtherClaims().put(claimName, username);
         if (hasAccessToResoure)
             token.getOtherClaims().put("groups", GROUP_NAME);
     }
@@ -183,6 +197,7 @@ public class WaldurOIDCGroupMapper extends AbstractOIDCProtocolMapper
             String providerUuid,
             String offeringUuid,
             String apiToken,
+            String groupName,
             boolean accessToken,
             boolean idToken,
             boolean userInfo) {
@@ -195,6 +210,7 @@ public class WaldurOIDCGroupMapper extends AbstractOIDCProtocolMapper
         config.put(API_URL_KEY, url);
         config.put(PROVIDER_UUID_KEY, providerUuid);
         config.put(API_TOKEN_KEY, apiToken);
+        config.put(GROUP_NAME_KEY, groupName);
 
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
