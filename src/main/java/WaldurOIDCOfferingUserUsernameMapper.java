@@ -26,14 +26,14 @@ import java.util.Map;
 
 import org.jboss.logging.Logger;
 
-public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
+public class WaldurOIDCOfferingUserUsernameMapper extends AbstractOIDCProtocolMapper
         implements OIDCAccessTokenMapper, OIDCIDTokenMapper, UserInfoTokenMapper {
 
     public static final String PROVIDER_ID = "oidc-waldurusernamemapper";
 
     private static final List<ProviderConfigProperty> configProperties = new ArrayList<ProviderConfigProperty>();
 
-    private static final Logger LOGGER = Logger.getLogger(WaldurOIDCProtocolMapper.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(WaldurOIDCOfferingUserUsernameMapper.class.getName());
 
     private static final ObjectMapper jacksonMapper;
 
@@ -76,7 +76,7 @@ public class WaldurOIDCProtocolMapper extends AbstractOIDCProtocolMapper
         configProperties.add(tlsValidationProperty);
 
         OIDCAttributeMapperHelper.addTokenClaimNameConfig(configProperties);
-        OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, WaldurOIDCProtocolMapper.class);
+        OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, WaldurOIDCOfferingUserUsernameMapper.class);
 
         jacksonMapper = new ObjectMapper();
     }
