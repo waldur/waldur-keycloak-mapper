@@ -32,9 +32,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         implements OIDCAccessTokenMapper, OIDCIDTokenMapper, UserInfoTokenMapper {
 
-    private static final String GROUP_NAME = "Viewers";
-
-    public static final String PROVIDER_ID = "oidc-waldur-group-mapper";
+    public static final String PROVIDER_ID = "oidc-waldur-offering-access-mapper";
 
     private static final List<ProviderConfigProperty> configProperties = new ArrayList<>();
 
@@ -254,7 +252,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
 
     @Override
     public String getDisplayType() {
-        return "Waldur group mapper";
+        return "Waldur offering access mapper";
     }
 
     @Override
@@ -264,6 +262,6 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
 
     @Override
     public String getHelpText() {
-        return "Mapper for group from Waldur";
+        return "Mapper for offering access from Waldur";
     }
 }
