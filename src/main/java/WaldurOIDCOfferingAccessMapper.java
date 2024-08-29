@@ -87,6 +87,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                 "");
         configProperties.add(property);
 
+        OIDCAttributeMapperHelper.addTokenClaimNameConfig(configProperties);
         OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, WaldurOIDCOfferingAccessMapper.class);
     }
 
@@ -172,6 +173,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         final String offeringUuid = config.get(OFFERING_UUID_KEY);
         final String groupName = config.get(GROUP_NAME_KEY);
         final String waldurToken = config.get(API_TOKEN_KEY);
+        final String claimName = config.get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
 
         UserModel user = userSession.getUser();
         RealmModel realm = keycloakSession.getContext().getRealm();
@@ -197,6 +199,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
             else {
                 LOGGER.info(String.format("Adding user %s to group %s", user.getUsername(), group.getName()));
                 user.joinGroup(group);
+                token.getOtherClaims().put(claimName, group.getName());
             }
         } else if(user.isMemberOf(group)) {
             LOGGER.info(String.format("Removing user %s from group %s", user.getUsername(), group.getName()));
@@ -218,6 +221,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
             String offeringUuid,
             String apiToken,
             String groupName,
+            String claimName,
             boolean accessToken,
             boolean idToken,
             boolean userInfo) {
@@ -231,6 +235,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         config.put(PROVIDER_UUID_KEY, providerUuid);
         config.put(API_TOKEN_KEY, apiToken);
         config.put(GROUP_NAME_KEY, groupName);
+        config.put(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME, claimName);
 
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
