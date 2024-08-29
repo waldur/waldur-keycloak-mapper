@@ -15,6 +15,7 @@ import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -43,6 +44,9 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
     private static final String OFFERING_UUID_KEY = "uuid.waldur.offering.value";
     private static final String PROVIDER_UUID_KEY = "uuid.waldur.provider.value";
     private static final String GROUP_NAME_KEY = "name.keycloak.group.value";
+    private static final String GROUP_ADD_KEY = "keycloak.group.add";
+    private static final String ROLE_NAME_KEY = "name.keycloak.role.value";
+    private static final String ROLE_ADD_KEY = "keycloak.role.add";
 
     static {
         ProviderConfigProperty property;
@@ -85,6 +89,30 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                 "Name of the precreated group in Keycloak.",
                 ProviderConfigProperty.STRING_TYPE,
                 "");
+        configProperties.add(property);
+
+        property = new ProviderConfigProperty(
+                GROUP_ADD_KEY,
+                "Add a user to the group.",
+                "Whether to add a user to the specified group.",
+                ProviderConfigProperty.BOOLEAN_TYPE,
+                "");
+        configProperties.add(property);
+
+        property = new ProviderConfigProperty(
+                ROLE_NAME_KEY,
+                "Keycloak role name.",
+                "Name of the precreated role in Keycloak.",
+                ProviderConfigProperty.STRING_TYPE,
+                false);
+        configProperties.add(property);
+
+        property = new ProviderConfigProperty(
+                ROLE_ADD_KEY,
+                "Grant a role to a user.",
+                "Whether to grant the specified role to a user.",
+                ProviderConfigProperty.BOOLEAN_TYPE,
+                false);
         configProperties.add(property);
 
         OIDCAttributeMapperHelper.addTokenClaimNameConfig(configProperties);
@@ -172,38 +200,71 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         final String providerUuid = config.get(PROVIDER_UUID_KEY);
         final String offeringUuid = config.get(OFFERING_UUID_KEY);
         final String groupName = config.get(GROUP_NAME_KEY);
+        final boolean addGroup = Boolean.parseBoolean(config.get(GROUP_ADD_KEY));
         final String waldurToken = config.get(API_TOKEN_KEY);
+        final String roleName = config.get(ROLE_NAME_KEY);
+        final boolean grantRole = Boolean.parseBoolean(config.get(ROLE_ADD_KEY));
         final String claimName = config.get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
 
         UserModel user = userSession.getUser();
         RealmModel realm = keycloakSession.getContext().getRealm();
         String groupPath = String.format("/%s", groupName);
         GroupModel group = KeycloakModelUtils.findGroupByPath(realm, groupName);
-
-        if (group == null) {
-            LOGGER.error(String.format("The group %s (path %s) does not exist, skipping user processing.",
-                    groupName,
-                    groupPath));
-            return;
-        }
+        RoleModel role = realm.getRole(roleName);
 
         boolean hasRelatedOfferingUser = this.hasRelatedOfferingUser(waldurUrl, providerUuid, waldurToken, username);
-        if (!hasRelatedOfferingUser)
+        if (!hasRelatedOfferingUser) {
+            LOGGER.error(String.format("The user %s does't have a linked offering user, skipping processing.",
+                    user.getUsername()));
             return;
+        }
+
         boolean hasAccessToResource = this.hasAccessToResource(waldurUrl, offeringUuid, waldurToken, username);
 
-        if (hasAccessToResource) {
-            if (!user.isMemberOf(group)) {
-                LOGGER.info(String.format("The user %s is already in the group %s", user.getUsername(), group.getName()));
+        if (addGroup) {
+            if (group == null) {
+                LOGGER.error(String.format("The group %s (path %s) does not exist, skipping user processing.",
+                        groupName,
+                        groupPath));
+            } else {
+                if (hasAccessToResource) {
+                    if (user.isMemberOf(group)) {
+                        LOGGER.info(
+                                String.format("The user %s is already in the group %s", user.getUsername(),
+                                        group.getName()));
+                    } else {
+                        LOGGER.info(String.format("Adding user %s to group %s", user.getUsername(), group.getName()));
+                        user.joinGroup(group);
+                        token.getOtherClaims().put(claimName, group.getName());
+                    }
+                } else if (user.isMemberOf(group)) {
+                    LOGGER.info(String.format("Removing user %s from group %s", user.getUsername(), group.getName()));
+                    user.leaveGroup(group);
+                }
             }
-            else {
-                LOGGER.info(String.format("Adding user %s to group %s", user.getUsername(), group.getName()));
-                user.joinGroup(group);
-                token.getOtherClaims().put(claimName, group.getName());
-            }
-        } else if(user.isMemberOf(group)) {
-            LOGGER.info(String.format("Removing user %s from group %s", user.getUsername(), group.getName()));
         }
+
+        if (grantRole) {
+            if (role == null) {
+                LOGGER.error(
+                        String.format("The role %s does not exist in the realm, skipping user processing", roleName));
+            } else {
+                if (hasAccessToResource) {
+                    if (user.hasRole(role)) {
+                        LOGGER.info(
+                                String.format("The user %s already has the role %s", user.getUsername(), role.getName()));
+                    } else {
+                        LOGGER.info(
+                                String.format("Granting a role %s to a user %s", role.getName(), user.getUsername()));
+                        user.grantRole(role);
+                    }
+                } else if (user.isMemberOf(group)) {
+                    LOGGER.info(String.format("Revoking role %s for user %s", role.getName(), user.getUsername()));
+                    user.deleteRoleMapping(role);
+                }
+            }
+        }
+
     }
 
     @Override
@@ -221,6 +282,9 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
             String offeringUuid,
             String apiToken,
             String groupName,
+            boolean groupAdd,
+            String roleName,
+            boolean roleAdd,
             String claimName,
             boolean accessToken,
             boolean idToken,
@@ -235,6 +299,9 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         config.put(PROVIDER_UUID_KEY, providerUuid);
         config.put(API_TOKEN_KEY, apiToken);
         config.put(GROUP_NAME_KEY, groupName);
+        config.put(GROUP_ADD_KEY, Boolean.toString(groupAdd));
+        config.put(ROLE_NAME_KEY, roleName);
+        config.put(ROLE_ADD_KEY, Boolean.toString(roleAdd));
         config.put(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME, claimName);
 
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
