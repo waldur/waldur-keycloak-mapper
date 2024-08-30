@@ -42,7 +42,6 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
     private static final String API_URL_KEY = "url.waldur.api.value";
     private static final String API_TOKEN_KEY = "token.waldur.value";
     private static final String OFFERING_UUID_KEY = "uuid.waldur.offering.value";
-    private static final String PROVIDER_UUID_KEY = "uuid.waldur.provider.value";
     private static final String GROUP_NAME_KEY = "name.keycloak.group.value";
     private static final String GROUP_ADD_KEY = "keycloak.group.add";
     private static final String ROLE_NAME_KEY = "name.keycloak.role.value";
@@ -55,14 +54,6 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                 API_URL_KEY,
                 "Waldur API URL",
                 "URL to the Waldur API including trailing backslash, e.g. https://waldur.example.com/api/",
-                ProviderConfigProperty.STRING_TYPE,
-                "");
-        configProperties.add(property);
-
-        property = new ProviderConfigProperty(
-                PROVIDER_UUID_KEY,
-                "Waldur provider UUID",
-                "UUID of the provider in Waldur",
                 ProviderConfigProperty.STRING_TYPE,
                 "");
         configProperties.add(property);
@@ -119,40 +110,6 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, WaldurOIDCOfferingAccessMapper.class);
     }
 
-    private boolean hasRelatedOfferingUser(String waldurUrl, String providerUuid, String waldurToken, String username) {
-        HttpClient client = HttpClient.newHttpClient();
-        try {
-            String waldurEndpoint = waldurUrl
-                    .concat("marketplace-service-providers/")
-                    .concat(providerUuid)
-                    .concat("/users/");
-
-            URI uri = new URI(waldurEndpoint);
-
-            LOGGER.info(uri);
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(uri)
-                    .GET()
-                    .setHeader(HttpHeaders.AUTHORIZATION, String.format("Token %s", waldurToken))
-                    .build();
-
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                LOGGER.error(String.format("The status code is %s", response.statusCode()));
-            } else {
-                ObjectMapper mapper = new ObjectMapper();
-                OfferingUserDTO[] users = mapper.readValue(response.body(), OfferingUserDTO[].class);
-
-                boolean found = Arrays.stream(users).anyMatch(x -> username.equals(x.getUsername()));
-                return found;
-            }
-        } catch (Exception e) {
-            LOGGER.error(e.getMessage(), e);
-        }
-        return false;
-    }
-
     private boolean hasAccessToResource(String waldurUrl, String offeringUuid, String waldurToken, String username) {
         if (offeringUuid.equals("")) {
             LOGGER.error("Offering UUID is empty, skipping resource access check");
@@ -197,7 +154,6 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         String username = userSession.getUser().getUsername();
 
         final String waldurUrl = config.get(API_URL_KEY);
-        final String providerUuid = config.get(PROVIDER_UUID_KEY);
         final String offeringUuid = config.get(OFFERING_UUID_KEY);
         final String groupName = config.get(GROUP_NAME_KEY);
         final boolean addGroup = Boolean.parseBoolean(config.get(GROUP_ADD_KEY));
@@ -211,13 +167,6 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         String groupPath = String.format("/%s", groupName);
         GroupModel group = KeycloakModelUtils.findGroupByPath(realm, groupName);
         RoleModel role = realm.getRole(roleName);
-
-        boolean hasRelatedOfferingUser = this.hasRelatedOfferingUser(waldurUrl, providerUuid, waldurToken, username);
-        if (!hasRelatedOfferingUser) {
-            LOGGER.error(String.format("The user %s does't have a linked offering user, skipping processing.",
-                    user.getUsername()));
-            return;
-        }
 
         boolean hasAccessToResource = this.hasAccessToResource(waldurUrl, offeringUuid, waldurToken, username);
 
@@ -278,7 +227,6 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
     public static ProtocolMapperModel create(
             String name,
             String url,
-            String providerUuid,
             String offeringUuid,
             String apiToken,
             String groupName,
@@ -296,7 +244,6 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
 
         Map<String, String> config = new HashMap<String, String>();
         config.put(API_URL_KEY, url);
-        config.put(PROVIDER_UUID_KEY, providerUuid);
         config.put(API_TOKEN_KEY, apiToken);
         config.put(GROUP_NAME_KEY, groupName);
         config.put(GROUP_ADD_KEY, Boolean.toString(groupAdd));
