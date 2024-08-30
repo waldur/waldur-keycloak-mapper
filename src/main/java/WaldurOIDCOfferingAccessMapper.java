@@ -96,7 +96,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                 "Add a user to the group.",
                 "Whether to add a user to the specified group.",
                 ProviderConfigProperty.BOOLEAN_TYPE,
-                "");
+                false);
         configProperties.add(property);
 
         property = new ProviderConfigProperty(
@@ -104,7 +104,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                 "Keycloak role name.",
                 "Name of the precreated role in Keycloak.",
                 ProviderConfigProperty.STRING_TYPE,
-                false);
+                "");
         configProperties.add(property);
 
         property = new ProviderConfigProperty(
