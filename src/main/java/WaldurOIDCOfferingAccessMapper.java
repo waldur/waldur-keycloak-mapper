@@ -3,7 +3,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +41,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
     private static final String API_URL_KEY = "url.waldur.api.value";
     private static final String API_TOKEN_KEY = "token.waldur.value";
     private static final String OFFERING_UUID_KEY = "uuid.waldur.offering.value";
+    private static final String USERNAME_SOURCE_KEY = "keycloak.username.source.value";
     private static final String GROUP_NAME_KEY = "name.keycloak.group.value";
     private static final String GROUP_ADD_KEY = "keycloak.group.add";
     private static final String ROLE_NAME_KEY = "name.keycloak.role.value";
@@ -72,6 +72,16 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                 "Token for Waldur API",
                 ProviderConfigProperty.STRING_TYPE,
                 "");
+        configProperties.add(property);
+
+        List<String> usernameSources = List.of("id", "username");
+        property = new ProviderConfigProperty(
+                USERNAME_SOURCE_KEY,
+                "Username source",
+                "Source of the keycloak username",
+                ProviderConfigProperty.LIST_TYPE,
+                "id");
+        property.setOptions(usernameSources);
         configProperties.add(property);
 
         property = new ProviderConfigProperty(
@@ -151,10 +161,9 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
 
     private void transformToken(IDToken token, Map<String, String> config, KeycloakSession keycloakSession,
             UserSessionModel userSession) {
-        String username = userSession.getUser().getUsername();
-
         final String waldurUrl = config.get(API_URL_KEY);
         final String offeringUuid = config.get(OFFERING_UUID_KEY);
+        final String usernameSource = config.get(USERNAME_SOURCE_KEY);
         final String groupName = config.get(GROUP_NAME_KEY);
         final boolean addGroup = Boolean.parseBoolean(config.get(GROUP_ADD_KEY));
         final String waldurToken = config.get(API_TOKEN_KEY);
@@ -163,6 +172,13 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         final String claimName = config.get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
 
         UserModel user = userSession.getUser();
+        String username = "";
+
+        if (usernameSource.equals("id"))
+            username = user.getId();
+        if (usernameSource.equals("username"))
+            username = user.getUsername();
+
         RealmModel realm = keycloakSession.getContext().getRealm();
         String groupPath = String.format("/%s", groupName);
         GroupModel group = KeycloakModelUtils.findGroupByPath(realm, groupName);
@@ -201,7 +217,8 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                 if (hasAccessToResource) {
                     if (user.hasRole(role)) {
                         LOGGER.info(
-                                String.format("The user %s already has the role %s", user.getUsername(), role.getName()));
+                                String.format("The user %s already has the role %s", user.getUsername(),
+                                        role.getName()));
                     } else {
                         LOGGER.info(
                                 String.format("Granting a role %s to a user %s", role.getName(), user.getUsername()));
@@ -229,6 +246,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
             String url,
             String offeringUuid,
             String apiToken,
+            String usernameSource,
             String groupName,
             boolean groupAdd,
             String roleName,
@@ -245,6 +263,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         Map<String, String> config = new HashMap<String, String>();
         config.put(API_URL_KEY, url);
         config.put(API_TOKEN_KEY, apiToken);
+        config.put(USERNAME_SOURCE_KEY, usernameSource);
         config.put(GROUP_NAME_KEY, groupName);
         config.put(GROUP_ADD_KEY, Boolean.toString(groupAdd));
         config.put(ROLE_NAME_KEY, roleName);
