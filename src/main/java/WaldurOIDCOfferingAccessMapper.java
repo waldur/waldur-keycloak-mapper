@@ -224,7 +224,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                                 String.format("Granting a role %s to a user %s", role.getName(), user.getUsername()));
                         user.grantRole(role);
                     }
-                } else if (user.isMemberOf(group)) {
+                } else if (user.hasRole(role)) {
                     LOGGER.info(String.format("Revoking role %s for user %s", role.getName(), user.getUsername()));
                     user.deleteRoleMapping(role);
                 }
