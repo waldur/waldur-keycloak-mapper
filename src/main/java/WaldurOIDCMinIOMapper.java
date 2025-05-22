@@ -14,6 +14,7 @@ import org.apache.http.util.EntityUtils;
 import org.keycloak.models.ClientSessionContext;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ProtocolMapperModel;
+import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.mappers.*;
@@ -47,6 +48,7 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
     private static final String API_TOKEN_KEY = "token.waldur.value";
     private static final String PERMISSION_SCOPE_TYPE = "scope-type.waldur.validate";
     private static final String API_TLS_VALIDATE_KEY = "tls.waldur.validate";
+    private static final String USERNAME_SOURCE_KEY = "keycloak.username.source.value";
 
     static {
         ProviderConfigProperty urlProperty = new ProviderConfigProperty(API_URL_KEY,
@@ -69,6 +71,16 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
                 API_TLS_VALIDATE_KEY, "TLS validation enabled",
                 "Enable TLS validation for Waldur API", ProviderConfigProperty.BOOLEAN_TYPE, false);
         configProperties.add(tlsValidationProperty);
+
+        List<String> usernameSources = List.of("id", "username");
+        ProviderConfigProperty usernameSourcesProperty = new ProviderConfigProperty(
+                USERNAME_SOURCE_KEY,
+                "Username source",
+                "Source of the keycloak username",
+                ProviderConfigProperty.LIST_TYPE,
+                "id");
+        usernameSourcesProperty.setOptions(usernameSources);
+        configProperties.add(usernameSourcesProperty);
 
         OIDCAttributeMapperHelper.addTokenClaimNameConfig(configProperties);
         OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties,
@@ -109,9 +121,10 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
 
     private List<UserPermissionDTO> fetchUserPermissions(String waldurApiUrl, String waldurToken,
             String waldurUserUsername, String scopeType, boolean tlsValidationEnabled) {
-        final String scopeField = String.format("&field=%s_permissions", scopeType);
-        final String waldurEndpoint = waldurApiUrl.concat("users/?").concat("username=")
-                .concat(waldurUserUsername).concat("&is_active=true").concat(scopeField);
+
+        final String scopeTypeFilter = String.format("&scope_type=%s", scopeType);
+        final String waldurEndpoint = waldurApiUrl.concat("user-permissions/?field=scope_uuid").concat("&username=")
+                .concat(waldurUserUsername).concat(scopeTypeFilter);
 
         String responseString =
                 requestDataFromMastermind(waldurEndpoint, waldurToken, tlsValidationEnabled);
@@ -139,6 +152,7 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
         final String waldurUrl = config.get(API_URL_KEY);
         final String waldurToken = config.get(API_TOKEN_KEY);
         String scopeType = config.get(PERMISSION_SCOPE_TYPE);
+        final String usernameSource = config.get(USERNAME_SOURCE_KEY);
         final boolean tlsValidationEnabled = Boolean.parseBoolean(config.get(API_TLS_VALIDATE_KEY));
         final String claimName = config.get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
 
@@ -148,7 +162,14 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
             scopeType = "project";
         }
 
-        String waldurUserUsername = userSession.getUser().getUsername();
+        UserModel user = userSession.getUser();
+        String waldurUserUsername = "";
+
+        if (usernameSource.equals("id"))
+            waldurUserUsername = user.getId();
+        if (usernameSource.equals("username"))
+            waldurUserUsername = user.getUsername();
+
 
         LOGGER.info(
                 String.format("Processing user %s, scope type: %s", waldurUserUsername, scopeType));
@@ -162,15 +183,8 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
             return;
         }
 
-        List<String> scopeUUIDs = Collections.emptyList();
-
-        if (scopeType.equals("project"))
-            scopeUUIDs = userPermissions.get(0).getProjectPermissions().stream()
-                    .map(permission -> permission.getProjectUUID()).collect(Collectors.toList());
-
-        if (scopeType.equals("customer"))
-            scopeUUIDs = userPermissions.get(0).getCustomerPermissions().stream()
-                    .map(permission -> permission.getCustomerUUID()).collect(Collectors.toList());
+        List<String> scopeUUIDs = userPermissions.stream().map(permission -> permission.getScopeUUID())
+                .map(uuid -> uuid.toString()).collect(Collectors.toList());
 
         String scopes = String.join(",", scopeUUIDs);
 
@@ -187,7 +201,7 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
     }
 
     public static ProtocolMapperModel create(String name, String url, String apiToken,
-            String scopeType, String claimName, boolean tlsValidationEnabled, boolean accessToken,
+            String scopeType, String claimName, boolean tlsValidationEnabled, String usernameSource, boolean accessToken,
             boolean idToken, boolean userInfo) {
         ProtocolMapperModel mapper = new ProtocolMapperModel();
         mapper.setName(name);
@@ -200,6 +214,7 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
         config.put(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME, claimName);
         config.put(PERMISSION_SCOPE_TYPE, scopeType);
         config.put(API_TLS_VALIDATE_KEY, Boolean.toString(tlsValidationEnabled));
+        config.put(USERNAME_SOURCE_KEY, usernameSource);
 
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN,
                 Boolean.toString(accessToken));
