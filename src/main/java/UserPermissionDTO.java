@@ -1,14 +1,12 @@
-import java.util.UUID;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class UserPermissionDTO {
     @JsonProperty("scope_uuid")
-    private UUID scopeUUID;
+    private String scopeUUID;
 
-    public UUID getScopeUUID() {
+    public String getScopeUUID() {
         return scopeUUID;
     }
 }
