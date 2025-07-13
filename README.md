@@ -109,15 +109,18 @@ The generated policy claims can be used by MinIO to:
 ### Build Instructions
 
 1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/waldur/waldur-keycloak-mapper.git
    cd waldur-keycloak-mapper
    ```
 
 2. **Build the JAR file:**
+
    ```bash
    mvn clean install
    ```
+
    This will:
    - Download all required dependencies
    - Compile the Java source code
@@ -126,24 +129,29 @@ The generated policy claims can be used by MinIO to:
    - Place the built JAR in the `target/` directory
 
 3. **Locate the built JAR:**
+
    The compiled JAR file will be available at:
-   ```
+
+   ```text
    target/waldur-keycloak-mapper-{version}.jar
    ```
 
 ### Build Options
 
 - **Clean build:** Remove previous build artifacts before building
+
   ```bash
   mvn clean install
   ```
 
 - **Skip tests:** Build without running tests (if any)
+
   ```bash
   mvn clean install -DskipTests
   ```
 
 - **Custom version:** Build with a specific version number
+
   ```bash
   mvn clean install -Drevision=1.2.3
   ```
