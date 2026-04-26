@@ -1,3 +1,5 @@
+package org.waldur.keycloak.mapper;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
