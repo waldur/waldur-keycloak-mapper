@@ -1,3 +1,5 @@
+package org.waldur.keycloak.mapper;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -10,24 +12,13 @@ import org.keycloak.protocol.oidc.mappers.*;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.representations.IDToken;
 
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 import org.jboss.logging.Logger;
 
@@ -46,9 +37,6 @@ public class WaldurOIDCOfferingUserUsernameMapper extends AbstractOIDCProtocolMa
     private static final String OFFERING_UUID_KEY = "uuid.waldur.offering.value";
     private static final String API_TOKEN_KEY = "token.waldur.value";
     private static final String API_TLS_VALIDATE_KEY = "tls.waldur.validate";
-
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
     static {
         ProviderConfigProperty urlProperty = new ProviderConfigProperty(
@@ -89,28 +77,6 @@ public class WaldurOIDCOfferingUserUsernameMapper extends AbstractOIDCProtocolMa
         jacksonMapper = new ObjectMapper();
     }
 
-    private HttpClient buildHttpClient(boolean tlsValidationEnabled) {
-        HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT);
-        if (tlsValidationEnabled) {
-            return builder.build();
-        }
-        try {
-            TrustManager[] trustAll = new TrustManager[]{
-                new X509TrustManager() {
-                    public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-                    public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-                    public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-                }
-            };
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustAll, new SecureRandom());
-            return builder.sslContext(sslContext).build();
-        } catch (Exception e) {
-            LOGGER.warn("Failed to create permissive SSL context, using default");
-            return builder.build();
-        }
-    }
-
     static String buildOfferingUserUrl(String waldurUrl, String offeringUuid, String username) {
         return waldurUrl
                 + "marketplace-offering-users/?"
@@ -120,26 +86,16 @@ public class WaldurOIDCOfferingUserUsernameMapper extends AbstractOIDCProtocolMa
     }
 
     private List<OfferingUserDTO> fetchUsernames(String url, String waldurToken, boolean tlsValidationEnabled) {
+        String body = new WaldurHttpClient(waldurToken, tlsValidationEnabled).get(url);
+        if (body.isEmpty()) {
+            return Collections.emptyList();
+        }
         try {
-            HttpClient client = buildHttpClient(tlsValidationEnabled);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(new URI(url))
-                    .timeout(REQUEST_TIMEOUT)
-                    .GET()
-                    .setHeader("Authorization", String.format("Token %s", waldurToken))
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            int statusCode = response.statusCode();
-            LOGGER.info(String.format("Status Code: %s", statusCode));
-            if (statusCode != 200) {
-                LOGGER.error(String.format("The status code is %s", statusCode));
-                return Collections.emptyList();
-            }
-            return jacksonMapper.readValue(response.body(), new TypeReference<List<OfferingUserDTO>>() {});
+            return jacksonMapper.readValue(body, new TypeReference<List<OfferingUserDTO>>() {});
         } catch (Exception e) {
             LOGGER.error(e.getMessage(), e);
+            return Collections.emptyList();
         }
-        return Collections.emptyList();
     }
 
     private void transformToken(

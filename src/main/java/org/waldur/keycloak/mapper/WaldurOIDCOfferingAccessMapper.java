@@ -1,16 +1,12 @@
-import java.net.URI;
+package org.waldur.keycloak.mapper;
+
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.http.HttpHeaders;
 import org.jboss.logging.Logger;
 import org.keycloak.models.ClientSessionContext;
 import org.keycloak.models.GroupModel;
@@ -49,9 +45,6 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
     private static final String GROUP_ADD_KEY = "keycloak.group.add";
     private static final String ROLE_NAME_KEY = "name.keycloak.role.value";
     private static final String ROLE_ADD_KEY = "keycloak.role.add";
-
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
     static {
         ProviderConfigProperty property;
@@ -140,34 +133,20 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
             return false;
         }
 
-        HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+        String waldurEndpoint = buildHasResourceAccessUrl(waldurUrl, offeringUuid, username);
+        String responseBody = new WaldurHttpClient(waldurToken).get(waldurEndpoint);
+        if (responseBody.isEmpty()) {
+            return false;
+        }
         try {
-            String waldurEndpoint = buildHasResourceAccessUrl(waldurUrl, offeringUuid, username);
-            URI uri = new URI(waldurEndpoint);
-
-            LOGGER.info(waldurEndpoint);
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(uri)
-                    .timeout(REQUEST_TIMEOUT)
-                    .GET()
-                    .setHeader(HttpHeaders.AUTHORIZATION, String.format("Token %s", waldurToken))
-                    .build();
-
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                LOGGER.error(String.format("The status code is %s", response.statusCode()));
-            } else {
-                ObjectMapper mapper = new ObjectMapper();
-                UserHasAccessDTO userHasAccess = mapper.readValue(response.body(), UserHasAccessDTO.class);
-                boolean result = userHasAccess.getHasAccess();
-                LOGGER.info(String.format("User has resource access: %s", result));
-                return result;
-            }
+            UserHasAccessDTO userHasAccess = new ObjectMapper().readValue(responseBody, UserHasAccessDTO.class);
+            boolean result = userHasAccess.getHasAccess();
+            LOGGER.infof("User has resource access: %s", result);
+            return result;
         } catch (Exception e) {
             LOGGER.error(e.getMessage(), e);
+            return false;
         }
-        return false;
     }
 
     private void transformToken(IDToken token, Map<String, String> config, KeycloakSession keycloakSession,
