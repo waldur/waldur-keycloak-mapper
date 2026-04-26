@@ -17,13 +17,52 @@ cache:
 .Build JAR template:
   stage: build
   script:
-    - mvn -B clean install
+    - mvn -B clean install -DskipITs
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - target/surefire-reports/TEST-*.xml
+    expire_in: 1 week
 
 Build JAR:
   image: maven:3.9-eclipse-temurin-17
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   extends: .Build JAR template
+
+# Integration tests boot a Keycloak container with the freshly-built shaded JAR
+# mounted as a provider, then verify all three protocol mappers are registered.
+# Uses the same DinD pattern as waldur-mastermind / waldur-pipelines: the mirrored
+# docker:27-dind image with --mtu=1400 (required for the runner network) aliased
+# as `docker`. TLS is disabled to keep the maven container simple — internal CI only.
+Integration tests:
+  stage: test
+  image: maven:3.9-eclipse-temurin-17
+  services:
+    - name: registry.hpc.ut.ee/mirror/library/docker:27-dind
+      command: ["--mtu=1400", "--tls=false"]
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    # Tell Testcontainers that ports published by sibling containers are reachable
+    # via the dind service alias, not localhost.
+    TESTCONTAINERS_HOST_OVERRIDE: docker
+    # Skip Ryuk reaper — it's the resource-cleanup container, but in dind it can't
+    # reliably outlive the job. Containers get cleaned up when dind exits anyway.
+    TESTCONTAINERS_RYUK_DISABLED: "true"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  script:
+    - mvn -B verify -Dsurefire.skip=true
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - target/failsafe-reports/TEST-*.xml
+    expire_in: 1 week
 
 .Deploy JAR template:
   stage: release

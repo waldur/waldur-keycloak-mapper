@@ -12,6 +12,12 @@
     <properties>
         <keycloak.version>26.6.0</keycloak.version>
         <junit.version>5.10.2</junit.version>
+        <testcontainers.version>1.20.4</testcontainers.version>
+        <testcontainers-keycloak.version>3.6.0</testcontainers-keycloak.version>
+        <!-- Registry to pull container images from for integration tests. Default mirrors
+             upstream via the HPC.UT.EE mirror to avoid Docker Hub / quay.io rate limits.
+             Override with -Ddocker.registry.prefix= to pull from upstream directly. -->
+        <docker.registry.prefix>registry.hpc.ut.ee/mirror/</docker.registry.prefix>
         <revision>1.0.0</revision>
     </properties>
 
@@ -46,6 +52,18 @@
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.dasniko</groupId>
+            <artifactId>testcontainers-keycloak</artifactId>
+            <version>${testcontainers-keycloak.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -83,6 +101,29 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <plugin.jar>${project.build.directory}/${project.build.finalName}.jar</plugin.jar>
+                        <keycloak.image>${docker.registry.prefix}keycloak/keycloak:${keycloak.version}</keycloak.image>
+                    </systemPropertyVariables>
+                    <environmentVariables>
+                        <!-- Route Testcontainers' helper images (ryuk, etc.) through the same mirror. -->
+                        <TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX>${docker.registry.prefix}</TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX>
+                    </environmentVariables>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
