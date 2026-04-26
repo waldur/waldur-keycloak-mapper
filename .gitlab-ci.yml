@@ -1,3 +1,7 @@
+include:
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/test/vulnerability-scan.yml"
+
 stages:
   - build
   - test
@@ -63,6 +67,26 @@ Integration tests:
       junit:
         - target/failsafe-reports/TEST-*.xml
     expire_in: 1 week
+
+Scan dependencies:
+  extends: .Vulnerability scan template
+  variables:
+    LOCKFILE_PATH: "pom.xml"
+  # Override the upstream template's script to add --no-resolve. By default osv-scanner's
+  # Maven extractor tries to resolve transitives via deps.dev, which fails for this project
+  # because our own artifact (waldur.keycloak:waldur-keycloak-mapper) isn't on Maven Central
+  # — the resolver returns "rpc error: service unavailable" and that surfaces as exit 127
+  # whenever the scan otherwise finds no vulnerabilities (see google/osv-scanner#348, #1121).
+  # We forfeit transitive-dep CVE coverage here; acceptable because the only compile/runtime
+  # deps we actually ship come transitively from Keycloak (`provided` scope), which is the
+  # operator's responsibility and is covered by their own Keycloak version updates.
+  script:
+    - |
+      CONFIG_FLAG=""
+      if [ -f ".osv-scanner.toml" ]; then
+        CONFIG_FLAG="--config=.osv-scanner.toml"
+      fi
+      osv-scanner scan --lockfile=${LOCKFILE_PATH} --no-resolve --format table ${CONFIG_FLAG}
 
 .Deploy JAR template:
   stage: release
