@@ -9,8 +9,8 @@ stages:
   script:
     - mvn clean install
 
-Build JAR for Java 11:
-  image: registry.hpc.ut.ee/mirror/library/maven:3.6-jdk-11
+Build JAR:
+  image: maven:3.9-eclipse-temurin-17
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   extends: .Build JAR template
@@ -22,18 +22,18 @@ Build JAR for Java 11:
   script:
     - mvn deploy -Drevision=latest -s ci_settings.xml
 
-Deploy latest JAR for Java 11:
-  image: registry.hpc.ut.ee/mirror/library/maven:3.6-jdk-11
+Deploy latest JAR:
+  image: maven:3.9-eclipse-temurin-17
   extends: .Deploy JAR template
 
-Release artifact for Java 11:
+Release artifact:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   rules:
     - if: $CI_COMMIT_TAG
   script:
     - apk update
-    - apk add openjdk11 maven jq curl
+    - apk add openjdk17 maven jq curl
     - echo $CI_COMMIT_TAG
     - mvn -Drevision=${CI_COMMIT_TAG} clean install
     - |
