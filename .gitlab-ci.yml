@@ -4,10 +4,20 @@ stages:
   - release
   - deploy
 
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
+
+cache:
+  key:
+    files:
+      - pom.xml
+  paths:
+    - .m2/repository
+
 .Build JAR template:
   stage: build
   script:
-    - mvn clean install
+    - mvn -B clean install
 
 Build JAR:
   image: maven:3.9-eclipse-temurin-17
@@ -20,7 +30,7 @@ Build JAR:
   rules:
     - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE != "schedule"'
   script:
-    - mvn deploy -Drevision=latest -s ci_settings.xml
+    - mvn -B deploy -Drevision=latest -s ci_settings.xml
 
 Deploy latest JAR:
   image: maven:3.9-eclipse-temurin-17
@@ -35,7 +45,7 @@ Release artifact:
     - apk update
     - apk add openjdk17 maven jq curl
     - echo $CI_COMMIT_TAG
-    - mvn -Drevision=${CI_COMMIT_TAG} clean install
+    - mvn -B -Drevision=${CI_COMMIT_TAG} clean install
     - |
       RELEASE_DATA="{\"tag_name\": \"$CI_COMMIT_TAG\", \"name\": \"$CI_COMMIT_TAG\"}"
       UPLOAD_URL=$(curl -sH "Authorization: token $GITHUB_JENKINS_TOKEN" -X POST "https://api.github.com/repos/waldur/waldur-keycloak-mapper/releases" -d "$RELEASE_DATA" | jq -r '.upload_url' | cut -d "{" -f 1)
