@@ -11,6 +11,7 @@
 
     <properties>
         <keycloak.version>26.6.0</keycloak.version>
+        <junit.version>5.10.2</junit.version>
         <revision>1.0.0</revision>
     </properties>
 
@@ -39,6 +40,13 @@
             <artifactId>keycloak-services</artifactId>
             <version>${keycloak.version}</version>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -70,6 +78,11 @@
                     <source>17</source>
                     <target>17</target>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

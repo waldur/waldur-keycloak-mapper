@@ -11,9 +11,11 @@ import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.representations.IDToken;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -109,6 +111,14 @@ public class WaldurOIDCOfferingUserUsernameMapper extends AbstractOIDCProtocolMa
         }
     }
 
+    static String buildOfferingUserUrl(String waldurUrl, String offeringUuid, String username) {
+        return waldurUrl
+                + "marketplace-offering-users/?"
+                + "offering_uuid=" + URLEncoder.encode(offeringUuid, StandardCharsets.UTF_8)
+                + "&user_username=" + URLEncoder.encode(username, StandardCharsets.UTF_8)
+                + "&field=username";
+    }
+
     private List<OfferingUserDTO> fetchUsernames(String url, String waldurToken, boolean tlsValidationEnabled) {
         try {
             HttpClient client = buildHttpClient(tlsValidationEnabled);
@@ -143,12 +153,7 @@ public class WaldurOIDCOfferingUserUsernameMapper extends AbstractOIDCProtocolMa
 
         String waldurUserUsername = userSession.getUser().getUsername();
 
-        final String waldurEndpoint = waldurUrl.concat("marketplace-offering-users/?")
-                .concat("offering_uuid=")
-                .concat(offeringUuid)
-                .concat("&user_username=")
-                .concat(waldurUserUsername)
-                .concat("&field=username");
+        final String waldurEndpoint = buildOfferingUserUrl(waldurUrl, offeringUuid, waldurUserUsername);
 
         LOGGER.info(String.format("Processing user %s", waldurUserUsername));
         LOGGER.info(String.format("Waldur URL: %s", waldurEndpoint));
