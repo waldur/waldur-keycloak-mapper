@@ -2,6 +2,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +47,9 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
     private static final String GROUP_ADD_KEY = "keycloak.group.add";
     private static final String ROLE_NAME_KEY = "name.keycloak.role.value";
     private static final String ROLE_ADD_KEY = "keycloak.role.add";
+
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
     static {
         ProviderConfigProperty property;
@@ -126,7 +130,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
             return false;
         }
 
-        HttpClient client = HttpClient.newHttpClient();
+        HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
         try {
             String waldurEndpoint = waldurUrl
                     .concat("marketplace-provider-offerings/")
@@ -139,6 +143,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(uri)
+                    .timeout(REQUEST_TIMEOUT)
                     .GET()
                     .setHeader(HttpHeaders.AUTHORIZATION, String.format("Token %s", waldurToken))
                     .build();
@@ -181,7 +186,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
 
         RealmModel realm = keycloakSession.getContext().getRealm();
         String groupPath = String.format("/%s", groupName);
-        GroupModel group = KeycloakModelUtils.findGroupByPath(realm, groupName);
+        GroupModel group = KeycloakModelUtils.findGroupByPath(keycloakSession, realm, groupName);
         RoleModel role = realm.getRole(roleName);
 
         boolean hasAccessToResource = this.hasAccessToResource(waldurUrl, offeringUuid, waldurToken, username);
@@ -200,8 +205,8 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
                     } else {
                         LOGGER.info(String.format("Adding user %s to group %s", user.getUsername(), group.getName()));
                         user.joinGroup(group);
-                        token.getOtherClaims().put(claimName, group.getName());
                     }
+                    token.getOtherClaims().put(claimName, group.getName());
                 } else if (user.isMemberOf(group)) {
                     LOGGER.info(String.format("Removing user %s from group %s", user.getUsername(), group.getName()));
                     user.leaveGroup(group);
@@ -271,7 +276,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         config.put(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME, claimName);
 
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
-        config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, Boolean.toString(accessToken));
+        config.put(OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN, Boolean.toString(idToken));
         config.put(OIDCAttributeMapperHelper.INCLUDE_IN_USERINFO, Boolean.toString(userInfo));
 
         mapper.setConfig(config);

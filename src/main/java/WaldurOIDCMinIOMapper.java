@@ -3,14 +3,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
 import org.keycloak.models.ClientSessionContext;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ProtocolMapperModel;
@@ -21,6 +13,13 @@ import org.keycloak.protocol.oidc.mappers.*;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.representations.IDToken;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,6 +27,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import org.jboss.logging.Logger;
 
@@ -50,6 +53,9 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
     private static final String API_TLS_VALIDATE_KEY = "tls.waldur.validate";
     private static final String USERNAME_SOURCE_KEY = "keycloak.username.source.value";
 
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
+
     static {
         ProviderConfigProperty urlProperty = new ProviderConfigProperty(API_URL_KEY,
                 "Waldur API URL",
@@ -69,7 +75,8 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
 
         ProviderConfigProperty tlsValidationProperty = new ProviderConfigProperty(
                 API_TLS_VALIDATE_KEY, "TLS validation enabled",
-                "Enable TLS validation for Waldur API", ProviderConfigProperty.BOOLEAN_TYPE, false);
+                "Validate the Waldur API server certificate. When disabled, both the certificate chain and hostname are accepted unconditionally — use only for testing or with self-signed certs.",
+                ProviderConfigProperty.BOOLEAN_TYPE, false);
         configProperties.add(tlsValidationProperty);
 
         List<String> usernameSources = List.of("id", "username");
@@ -89,30 +96,45 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
         jacksonMapper = new ObjectMapper();
     }
 
+    private HttpClient buildHttpClient(boolean tlsValidationEnabled) {
+        HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT);
+        if (tlsValidationEnabled) {
+            return builder.build();
+        }
+        try {
+            TrustManager[] trustAll = new TrustManager[]{
+                new X509TrustManager() {
+                    public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                }
+            };
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustAll, new SecureRandom());
+            return builder.sslContext(sslContext).build();
+        } catch (Exception e) {
+            LOGGER.warn("Failed to create permissive SSL context, using default");
+            return builder.build();
+        }
+    }
+
     private String requestDataFromMastermind(String waldurEndpoint, String waldurToken,
             boolean tlsValidationEnabled) {
         LOGGER.info(String.format("Waldur URL: %s", waldurEndpoint));
-        HttpGet request = new HttpGet(waldurEndpoint);
-        request.addHeader(HttpHeaders.AUTHORIZATION, String.format("Token %s", waldurToken));
-        try (CloseableHttpClient httpClient =
-                tlsValidationEnabled ? HttpClients.createDefault()
-                        : HttpClients.custom().setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
-                                .build();
-                CloseableHttpResponse response = httpClient.execute(request);) {
-            int statusCode = response.getStatusLine().getStatusCode();
-
+        try {
+            HttpClient client = buildHttpClient(tlsValidationEnabled);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(new URI(waldurEndpoint))
+                    .timeout(REQUEST_TIMEOUT)
+                    .GET()
+                    .setHeader("Authorization", String.format("Token %s", waldurToken))
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            int statusCode = response.statusCode();
             LOGGER.info(String.format("Status Code: %s", statusCode));
             if (statusCode != 200)
                 return "";
-
-            HttpEntity entity = response.getEntity();
-            if (entity == null) {
-                LOGGER.error("Unable to get entity from the response");
-                return "";
-            }
-
-            String result = EntityUtils.toString(entity);
-            return result;
+            return response.body();
         } catch (Exception e) {
             LOGGER.error(e.getMessage(), e);
             return "";
