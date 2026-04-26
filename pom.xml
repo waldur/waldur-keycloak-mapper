@@ -18,7 +18,7 @@
              upstream via the HPC.UT.EE mirror to avoid Docker Hub / quay.io rate limits.
              Override with -Ddocker.registry.prefix= to pull from upstream directly. -->
         <docker.registry.prefix>registry.hpc.ut.ee/mirror/</docker.registry.prefix>
-        <revision>1.0.0</revision>
+        <revision>1.4.0</revision>
     </properties>
 
     <dependencies>

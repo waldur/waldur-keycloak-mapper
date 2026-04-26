@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.4.0 - 2026-04-26
+
+### Highlights
+
+This is the first release on the new versioning scheme since v1.0.1, bundling roughly two years of accumulated work. Operators get Keycloak 26.6.1 support, two additional protocol mappers (offering access with group/role provisioning, and per-offering preferred username), and a hardened build pipeline with vulnerability scanning, integration tests, and proper URL encoding throughout.
+
+### What's New
+
+- Keycloak 26.6.1 support, with the build now producing a shaded JAR that drops directly into `/opt/keycloak/providers/`.
+- New `WaldurOIDCOfferingAccessMapper` that checks per-user offering access against Waldur and provisions Keycloak group membership and role assignments during token issuance, with configurable claim name, visibility, and username source.
+- New `WaldurOIDCOfferingUserUsernameMapper` that emits the per-offering preferred username from Waldur as a custom claim.
+- `WaldurOIDCMinIOMapper` now emits comma-separated `scope_uuid`s suitable for MinIO policy mapping, covering both customer and project scopes.
+- Custom claim name and claim visibility (ID token, access token, userinfo) are now configurable per mapper ([WAL-5781]).
+- Optional TLS validation toggle and `fail_on_error` flag on applicable mappers ([WAL-5781]).
+- Release artifacts are now published to GitHub on tag in addition to the GitLab package registry.
+
+### Improvements
+
+- Updated user-permissions integration in the MinIO mapper to match the current Waldur API contract ([WAL-8745]).
+- Migrated configuration to typed `ProviderConfigProperty` declarations for clearer admin UI hints.
+- Code reorganized under `org.waldur.keycloak.mapper`, with a shared `WaldurHttpClient` (5s connect / 15s request timeouts, optional trust-all SSL, token auth) backing all three mappers.
+
+### Bug Fixes
+
+- Correct URL encoding of special characters in all Waldur endpoint URLs.
+- Fixed claim emission bug surfaced during the 26.6.0 upgrade.
+- Fixed role check in the offering access mapper.
+- Fixed `scopeUuid` field type and default property values in offering access configuration.
+
+### Security
+
+- New CI job scans dependencies for known vulnerabilities via `osv-scanner` on every pipeline.
+- New integration test boots Keycloak with the freshly built JAR mounted as a provider and verifies all three mappers register, catching SPI breakage before release.
+
+### Statistics
+
+> 36 commits, 23 files changed (+2249/−256 lines)
+
+---
+
 ## Unreleased - 2026-04-26
 
 Highlights: Keycloak 26.6.0 support lands alongside a claim-handling bug fix, with the codebase moved into a real `org.waldur.keycloak.mapper` package and a shared HTTP client. CI now runs an integration test that loads the built JAR into Keycloak and scans dependencies for known vulnerabilities.
