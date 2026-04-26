@@ -1,7 +1,9 @@
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -124,19 +126,23 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
         OIDCAttributeMapperHelper.addIncludeInTokensConfig(configProperties, WaldurOIDCOfferingAccessMapper.class);
     }
 
+    static String buildHasResourceAccessUrl(String waldurUrl, String offeringUuid, String username) {
+        return waldurUrl
+                + "marketplace-provider-offerings/"
+                + URLEncoder.encode(offeringUuid, StandardCharsets.UTF_8)
+                + "/user_has_resource_access/?username="
+                + URLEncoder.encode(username, StandardCharsets.UTF_8);
+    }
+
     private boolean hasAccessToResource(String waldurUrl, String offeringUuid, String waldurToken, String username) {
-        if (offeringUuid.equals("")) {
+        if (offeringUuid.isEmpty()) {
             LOGGER.error("Offering UUID is empty, skipping resource access check");
             return false;
         }
 
         HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
         try {
-            String waldurEndpoint = waldurUrl
-                    .concat("marketplace-provider-offerings/")
-                    .concat(offeringUuid)
-                    .concat("/user_has_resource_access/?username=")
-                    .concat(username);
+            String waldurEndpoint = buildHasResourceAccessUrl(waldurUrl, offeringUuid, username);
             URI uri = new URI(waldurEndpoint);
 
             LOGGER.info(waldurEndpoint);
@@ -186,7 +192,7 @@ public class WaldurOIDCOfferingAccessMapper extends AbstractOIDCProtocolMapper
 
         RealmModel realm = keycloakSession.getContext().getRealm();
         String groupPath = String.format("/%s", groupName);
-        GroupModel group = KeycloakModelUtils.findGroupByPath(keycloakSession, realm, groupName);
+        GroupModel group = KeycloakModelUtils.findGroupByPath(keycloakSession, realm, groupPath);
         RoleModel role = realm.getRole(roleName);
 
         boolean hasAccessToResource = this.hasAccessToResource(waldurUrl, offeringUuid, waldurToken, username);

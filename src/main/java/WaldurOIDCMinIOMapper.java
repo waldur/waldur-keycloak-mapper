@@ -14,9 +14,11 @@ import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.representations.IDToken;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -141,19 +143,24 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
         }
     }
 
+    static String buildPermissionsUrl(String waldurApiUrl, String waldurUserUsername, String scopeType) {
+        return waldurApiUrl
+                + "user-permissions/?field=scope_uuid"
+                + "&username=" + URLEncoder.encode(waldurUserUsername, StandardCharsets.UTF_8)
+                + "&scope_type=" + URLEncoder.encode(scopeType, StandardCharsets.UTF_8);
+    }
+
     private List<UserPermissionDTO> fetchUserPermissions(String waldurApiUrl, String waldurToken,
             String waldurUserUsername, String scopeType, boolean tlsValidationEnabled) {
 
-        final String scopeTypeFilter = String.format("&scope_type=%s", scopeType);
-        final String waldurEndpoint = waldurApiUrl.concat("user-permissions/?field=scope_uuid").concat("&username=")
-                .concat(waldurUserUsername).concat(scopeTypeFilter);
+        final String waldurEndpoint = buildPermissionsUrl(waldurApiUrl, waldurUserUsername, scopeType);
 
         String responseString =
                 requestDataFromMastermind(waldurEndpoint, waldurToken, tlsValidationEnabled);
 
         List<UserPermissionDTO> userPermissions = Collections.emptyList();
 
-        if (responseString == "")
+        if (responseString.isEmpty())
             return userPermissions;
 
         try {
@@ -200,8 +207,7 @@ public class WaldurOIDCMinIOMapper extends AbstractOIDCProtocolMapper
                 waldurUserUsername, scopeType, tlsValidationEnabled);
 
         if (userPermissions.isEmpty()) {
-            LOGGER.error(String.format(String.format("Unable to retrieve user permissions for %s.",
-                    waldurUserUsername)));
+            LOGGER.error(String.format("Unable to retrieve user permissions for %s.", waldurUserUsername));
             return;
         }
 
