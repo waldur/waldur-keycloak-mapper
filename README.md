@@ -125,7 +125,7 @@ The shaded JAR lands at `target/waldur-keycloak-mapper-<version>.jar`. Locally, 
 | -------------- | -------- | ---- |
 | 1.4.x          | 26.x     | 17   |
 
-Older mapper versions targeted earlier Keycloak releases; check [`CHANGELOG.md`](CHANGELOG.md) and the release notes if you need to pin to an older line.
+Older mapper versions targeted earlier Keycloak releases; check the release notes if you need to pin to an older line.
 
 ## Releasing
 
@@ -136,8 +136,6 @@ Releases are developer-driven, not CI-automated:
 git push origin master --tags    # CI picks up the tag and publishes the GitHub release
 ```
 
-See [`CLAUDE.md`](CLAUDE.md) for the full release-flow notes.
-
 ## License
 
-[MIT](LICENSE.md) — Copyright (c) 2025-2026 OpenNode OÜ.
+MIT — Copyright (c) 2025-2026 OpenNode OÜ.
